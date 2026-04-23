@@ -172,8 +172,52 @@ class MemoryHubMemoryStore(MemoryStore):
         return MemoryHubMemoryStoreInstance(context_id=context_id, client=client)
 
 
+class _MemoryProxy:
+    """Lazy-initializing proxy that resolves the MemoryStoreInstance on first use.
+
+    The ADK's Depends framework calls the dependency callable synchronously and
+    yields the return value. Since MemoryStore.create() is async, we can't call
+    it during dependency resolution. Instead, we return this proxy which lazily
+    awaits create() on the first method call.
+    """
+
+    def __init__(self, store: MemoryHubMemoryStore, context_id: str) -> None:
+        self._store = store
+        self._context_id = context_id
+        self._instance: MemoryHubMemoryStoreInstance | None = None
+
+    async def _resolve(self) -> MemoryHubMemoryStoreInstance:
+        if self._instance is None:
+            self._instance = await self._store.create(self._context_id)
+        return self._instance
+
+    async def search(self, query, **kwargs):
+        inst = await self._resolve()
+        return await inst.search(query, **kwargs)
+
+    async def write(self, content, **kwargs):
+        inst = await self._resolve()
+        return await inst.write(content, **kwargs)
+
+    async def read(self, memory_id):
+        inst = await self._resolve()
+        return await inst.read(memory_id)
+
+    async def update(self, memory_id, content):
+        inst = await self._resolve()
+        return await inst.update(memory_id, content)
+
+    async def delete(self, memory_id):
+        inst = await self._resolve()
+        return await inst.delete(memory_id)
+
+
 def create_memory_dependency(store: MemoryHubMemoryStore):
     """Create a DI-compatible dependency provider for the ADK Depends pattern.
+
+    Returns a synchronous callable (required by ADK's Depends) that produces
+    a lazy-initializing proxy. The proxy resolves the MemoryStoreInstance
+    on first async method call.
 
     Usage::
 
@@ -189,7 +233,7 @@ def create_memory_dependency(store: MemoryHubMemoryStore):
             results = await memory.search("user preferences")
     """
 
-    async def provider(message, context, request_context):
-        return await store.create(context.context_id)
+    def provider(message, context, request_context):
+        return _MemoryProxy(store, context.context_id)
 
     return provider
