@@ -3,15 +3,18 @@ FROM ghcr.io/astral-sh/uv:${UV_VERSION} AS uv
 
 FROM registry.redhat.io/ubi9/python-311:latest
 
+USER 0
 COPY --from=uv /uv /bin/uv
 
 # Copy entire repo (agent references ../../apps/adk-py as editable source)
 COPY . /app/.
 WORKDIR /app/agents/memoryhub-test-agent
 
-# Install dependencies — uv resolves the editable adk-py from the workspace
-RUN UV_COMPILE_BYTECODE=1 HOME=/tmp uv sync --no-cache --link-mode copy
+# Install dependencies as root, then fix permissions for OpenShift's arbitrary UID
+RUN UV_COMPILE_BYTECODE=1 HOME=/tmp uv sync --no-cache --link-mode copy && \
+    chmod -R g=u /app/agents/memoryhub-test-agent/.venv
 
+USER 1001
 ENV PRODUCTION_MODE=True
 EXPOSE 8000
 
