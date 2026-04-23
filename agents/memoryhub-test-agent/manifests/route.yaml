@@ -1,0 +1,12 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: memoryhub-test-agent
+spec:
+  to:
+    kind: Service
+    name: memoryhub-test-agent
+  port:
+    targetPort: http
+  tls:
+    termination: edge

@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: memoryhub-test-agent
+  labels:
+    app: memoryhub-test-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: memoryhub-test-agent
+  template:
+    metadata:
+      labels:
+        app: memoryhub-test-agent
+    spec:
+      containers:
+      - name: agent
+        image: quay.io/wjackson/memoryhub-test-agent:latest
+        ports:
+        - containerPort: 8000
+          name: http
+        envFrom:
+        - secretRef:
+            name: agent-credentials
+        env:
+        - name: HOST
+          value: "0.0.0.0"
+        - name: PORT
+          value: "8000"
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+          limits:
+            memory: 512Mi
+        livenessProbe:
+          httpGet:
+            path: /healthcheck
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /healthcheck
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 10

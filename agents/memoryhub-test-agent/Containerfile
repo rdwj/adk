@@ -1,0 +1,18 @@
+ARG UV_VERSION=0.11.2
+FROM ghcr.io/astral-sh/uv:${UV_VERSION} AS uv
+
+FROM registry.redhat.io/ubi9/python-311:latest
+
+COPY --from=uv /uv /bin/uv
+
+# Copy entire repo (agent references ../../apps/adk-py as editable source)
+COPY . /app/.
+WORKDIR /app/agents/memoryhub-test-agent
+
+# Install dependencies — uv resolves the editable adk-py from the workspace
+RUN UV_COMPILE_BYTECODE=1 HOME=/tmp uv sync --no-cache --link-mode copy
+
+ENV PRODUCTION_MODE=True
+EXPOSE 8000
+
+CMD ["/app/agents/memoryhub-test-agent/.venv/bin/server"]
